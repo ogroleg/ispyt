@@ -1,7 +1,10 @@
 import argparse
 
 
-def create_argument_parser():
+def create_input_argument_parser() -> argparse.ArgumentParser:
+    """
+    :return: parser of input arguments
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('--db', dest='db', type=str, help='database name to insert data', required=True)
     parser.add_argument('--erase', dest='erase', action='store_true', help='erases db before inserting data')
