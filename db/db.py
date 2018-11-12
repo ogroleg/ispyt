@@ -8,4 +8,9 @@ def connect_to_database(hostname, database):
 
 
 def save_results_to_db(db, results):
-    pass
+    """
+    Saves data after processing to db.
+    :param db: active connection to db
+    :param results: list
+    """
+    db.requests.insert(results)
