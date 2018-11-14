@@ -1,6 +1,6 @@
 from pymongo import MongoClient
 
-from data_parser.properties import DB_CONNECTION_TIMEOUT
+from .properties import DB_CONNECTION_TIMEOUT
 
 
 def connect_to_database(hostname, database):
