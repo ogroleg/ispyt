@@ -38,7 +38,7 @@ class HtmlParser2017(IHtmlParser):
         :return: expected to be 'денна' or 'заочна'
         """
         header = HtmlParser2017.__get_header_from_file_data__(file_string)
-        return header.getchildren()[1].getchildren()[2].tail.encode('windows-1251').decode('utf-8')
+        return header.getchildren()[1].getchildren()[2].tail
 
     @staticmethod
     def __find_body_with_requests_and_remove_contents_earlier__(file_string: str) -> str:
@@ -55,8 +55,14 @@ class HtmlParser2017(IHtmlParser):
         file_string = HtmlParser2017.__find_body_with_requests_and_remove_contents_earlier__(file_string)
         start = file_string.index('<tbody>')
         end = file_string.index('</table>')
-        file_string = file_string[start + len('<tbody>'): end].encode('windows-1251').decode('utf-8')
-        return html.fragments_fromstring(file_string)
+        file_string = file_string[start + len('<tbody>'): end]
+        requests = html.fragments_fromstring(file_string)
+
+        return HtmlParser2017.filter_empty_requests(requests)
+
+    @staticmethod
+    def filter_empty_requests(requests):
+        return [request for request in requests if request.getchildren()]
 
     def get_details_element(self):
         return self.row_elements[5][0]
