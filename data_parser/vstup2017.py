@@ -3,11 +3,11 @@ import os
 import queue
 import threading
 
-from data_parser.AdmissionRequest import AbstractAdmissionRequest, AdmissionRequest2017
-from data_parser.HtmlParser import HtmlParser2017
-from data_parser.InputArgumentParser import create_input_argument_parser
-from data_parser.properties import MAX_FILE_CACHE_SIZE, FILE_ENCODING, FILE_CACHE_DELAY, NUM_RESULTS_TO_SAVE
-from db.db import connect_to_database, save_results_to_db
+from helpers.AdmissionRequest import AbstractAdmissionRequest, AdmissionRequest2017
+from helpers.HtmlParser import HtmlParser2017
+from helpers.InputArgumentParser import create_input_argument_parser
+from helpers.properties import MAX_FILE_CACHE_SIZE, FILE_ENCODING, FILE_CACHE_DELAY, NUM_RESULTS_TO_SAVE
+from helpers.db import connect_to_database, save_results_to_db
 
 
 def get_univ_id_and_list_id_from_filename(file_name: str):
