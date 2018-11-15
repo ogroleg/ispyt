@@ -4,8 +4,8 @@ import queue
 import threading
 
 from data_parser.AdmissionRequest import AbstractAdmissionRequest, AdmissionRequest2017
-from data_parser.HtmlParser import HtmlParser2017
 from data_parser.InputArgumentParser import create_input_argument_parser
+from data_parser.htmlparser.htmlparser2017 import HtmlParser2017
 from data_parser.properties import MAX_FILE_CACHE_SIZE, FILE_ENCODING, FILE_CACHE_DELAY, NUM_RESULTS_TO_SAVE
 from db.db import connect_to_database, save_results_to_db
 
