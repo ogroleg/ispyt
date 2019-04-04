@@ -1,16 +1,18 @@
 from lxml import html
 
+from data_parser.common import to_utf8
 from data_parser.htmlparser.ihtmlparser import IHtmlParser
 
 
 class HtmlParser2017(IHtmlParser):
-    OLYMPIAD_OR_MAN_PARTICIPATOR = 'Переможець Всеукраїнської олімпіади або конкурсу МАН'
+    OLYMPIAD_OR_MAN_PARTICIPATOR = \
+        'Переможець Всеукраїнської олімпіади або конкурсу МАН'
     EDUCATION_DOCUMENT = 'Середній бал документа про освіту'
     UNIVERSITY_EXAM = 'Фаховий іспит'
     N_COLUMNS_WITH_PRIORITY = 9
 
     @staticmethod
-    def __get_header_from_file_data__(file_string: str):
+    def _get_header_from_file_data(file_string: str):
         _ = '<div class="title-page">'
         header_str = file_string[file_string.index(_):]
         header_str = header_str[:header_str.index('</div>') + len('</div>')]
@@ -23,25 +25,23 @@ class HtmlParser2017(IHtmlParser):
         :param file_string: text of html page
         :return: expected to be 'денна' or 'заочна'
         """
-        header = HtmlParser2017.__get_header_from_file_data__(file_string)
-        return header.getchildren()[1].getchildren()[2].tail.encode('windows-1251').decode('utf-8')
-
-    @staticmethod
-    def __find_body_with_requests_and_remove_contents_earlier__(file_string: str) -> str:
-        class_of_table_with_requests = 'class="tablesaw tablesaw-stack tablesaw-sortable"'
-        start = file_string.index(class_of_table_with_requests)
-        return file_string[start + len(class_of_table_with_requests):]
+        header = HtmlParser2017._get_header_from_file_data(file_string)
+        return to_utf8(header.getchildren()[1].getchildren()[2].tail)
 
     @staticmethod
     def get_requests_from_page(file_string: str):
         """
         :param file_string: text of html page
-        :return: array of html elements with admission request data (each element is a row of requests table)
+        :return: array of html elements with admission request data
+        (each element is a row of requests table)
         """
-        file_string = HtmlParser2017.__find_body_with_requests_and_remove_contents_earlier__(file_string)
+        class_of_table_with_requests = \
+            'class="tablesaw tablesaw-stack tablesaw-sortable"'
+        start = file_string.index(class_of_table_with_requests)
+        file_string = file_string[start + len(class_of_table_with_requests):]
         start = file_string.index('<tbody>')
         end = file_string.index('</table>')
-        file_string = file_string[start + len('<tbody>'): end].encode('windows-1251').decode('utf-8')
+        file_string = to_utf8(file_string[start + len('<tbody>'): end])
         return html.fragments_fromstring(file_string)
 
     def get_details_element(self):
@@ -65,46 +65,48 @@ class HtmlParser2017(IHtmlParser):
         for exam_details in details_scores:
             exam_details = exam_details.text
             if exam_details is not None and 'ЗНО' in exam_details:
-                exam_name, score = exam_details.replace('(ЗНО)', '').strip().rsplit(' ', 1)
+                exam_name, score = exam_details.replace('(ЗНО)', '') \
+                    .strip().rsplit(' ', 1)
                 result[exam_name.strip()] = float(score)
         return result
 
-    def get_score_for_olympiad_or_man_participation(self) -> float:
-        """
-        Example of details if applicant has been a participator in olympiad or MAN competition:
-        Переможець Всеукраїнської олімпіади або конкурсу МАН 10.0
-
-        :return: 0.0 if field is not found, score value if appropriate field is found
-        """
+    def _get_score(self, field: str) -> float:
         details_scores = self.get_details_element()
         for details_score in details_scores:
             details_score = details_score.text
-            if details_score is not None and self.OLYMPIAD_OR_MAN_PARTICIPATOR in details_score:
-                score = details_score.replace(self.OLYMPIAD_OR_MAN_PARTICIPATOR, '').strip()
+            if details_score is not None and field in details_score:
+                score = details_score.replace(field, '').strip()
                 return float(score)
         return 0.0
+
+    def get_score_for_olympiad_or_man_participation(self) -> float:
+        """
+        Example of details if applicant has been a participator in
+        olympiad or MAN competition:
+        Переможець Всеукраїнської олімпіади або конкурсу МАН 10.0
+
+        :return: 0.0 if field is not found, score value if appropriate
+        field is found
+        """
+        return self._get_score(self.OLYMPIAD_OR_MAN_PARTICIPATOR)
 
     def get_score_of_education_document(self):
         """
         Example of score of education document details:
         Середній бал документа про освіту 10.40
 
-        :return: 0.0 if field is not found, score value if appropriate field is found
+        :return: 0.0 if field is not found, score value if appropriate
+        field is found
         """
-        details_scores = self.get_details_element()
-        for details_score in details_scores:
-            details_score = details_score.text
-            if details_score is not None and self.EDUCATION_DOCUMENT in details_score:
-                score = details_score.replace(self.EDUCATION_DOCUMENT, '').strip()
-                return float(score)
-        return 0.0
+        return self._get_score(self.EDUCATION_DOCUMENT)
 
     def get_university_exams(self):
         """
         Example of score of university exam:
         Творчий конкурс (натура, натюрморт, композиція) 184.00
 
-        :return: {} if field is not found, {exam_name: score} if appropriate field is found
+        :return: {} if field is not found, {exam_name: score} if
+        appropriate field is found
         """
         university_exams = {}
         details_scores = self.get_details_element()
@@ -142,7 +144,8 @@ class HtmlParser2017(IHtmlParser):
         """
         Get coefficient values from row
         :param coefficient: type of coefficient
-        :return: 0.0 if coefficient not found or equals -, float value alternatively
+        :return: 0.0 if coefficient not found or equals -, float value
+        alternatively
         """
         coefficient_texts = self.get_coefficients_text().split('\n')
         for coefficient_text in coefficient_texts:

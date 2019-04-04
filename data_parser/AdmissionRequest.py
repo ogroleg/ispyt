@@ -1,5 +1,6 @@
 class AbstractAdmissionRequest(object):
-    def __init__(self, univ_id: int, list_id: int, is_denna: bool, is_zaochna: bool):
+    def __init__(self, univ_id: int, list_id: int,
+                 is_denna: bool, is_zaochna: bool):
         self.univ_id = univ_id
         self.list_id = list_id
         self.is_denna = is_denna

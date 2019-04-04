@@ -1,17 +1,19 @@
 import argparse
-import pymongo
 import multiprocessing
-import threading
-import queue
 import os
+import queue
+import threading
+
+import pymongo
 from lxml import html
 
 # constants
+from data_parser.properties import FILE_ENCODING
+
 MAX_FILE_CACHE_SIZE = 2000  # per process
 FILE_CACHE_DELAY = 0.2  # seconds to wait
 NUM_RESULTS_TO_SAVE = 25 * 1000
 DB_CONNECTION_TIMEOUT = 10 * 1000  # ms
-FILE_ENCODING = 'windows-1251'
 
 
 def process_page(file_name: str, file_string: str):
@@ -158,8 +160,8 @@ def read_files(
         path = os.path.join(*file_path)
         with open(path, encoding=FILE_ENCODING) as f:  # and read it
             file_data = f.read()
-
-        file_strings.put((os.path.basename(path), file_data))  # store contents in cache
+        # store contents in cache
+        file_strings.put((os.path.basename(path), file_data))
 
     if not inputs.empty():  # wait and repeat
         read_files_timer(inputs, file_strings, all_files_are_read, FILE_CACHE_DELAY)

@@ -1,11 +1,11 @@
 class IHtmlParser(object):
     def __init__(self, row):
         self.row_elements = row.getchildren()
-        self.title = self.__get_title_of_row__(row)
+        self.title = self._get_title_of_row(row)
         self.n_columns = len(self.row_elements)
 
     @staticmethod
-    def __get_title_of_row__(row):
+    def _get_title_of_row(row):
         style_value = row.getchildren()[0].attrib['style']
         # if background is white - there is no title to row
         if style_value == 'background:#fff':
