@@ -1,12 +1,19 @@
+import logging
+
 from lxml import html
 
 from data_parser.common import to_utf8
 from data_parser.htmlparser.ihtmlparser import IHtmlParser
 
+logger = logging.getLogger(__name__)
+
 
 class HtmlParser2017(IHtmlParser):
     OLYMPIAD_OR_MAN_PARTICIPATOR = \
         'Переможець Всеукраїнської олімпіади або конкурсу МАН'
+    WORLD_COMPETITION_PARTICIPATOR = 'Учасник міжнародних олімпіад і/або ' \
+                                     'призер Олімпійських, Паралімпійських ' \
+                                     'і Дефлімпійських ігор'
     EDUCATION_DOCUMENT = 'Середній бал документа про освіту'
     UNIVERSITY_EXAM = 'Фаховий іспит'
     N_COLUMNS_WITH_PRIORITY = 9
@@ -26,7 +33,19 @@ class HtmlParser2017(IHtmlParser):
         :return: expected to be 'денна' or 'заочна'
         """
         header = HtmlParser2017._get_header_from_file_data(file_string)
-        return to_utf8(header.getchildren()[1].getchildren()[2].tail)
+        for item in header.getchildren()[1].getchildren():
+            caption = to_utf8(item.tail)
+            try:
+                if caption is None:
+                    continue
+                if any(('денна' in caption, 'заочна' in caption)):
+                    return caption
+            except TypeError:
+                logger.error(f'ERROR - Argument of "NoneType" is not iterable:'
+                             f' caption={caption}')
+        logger.error(
+            f'ERROR - Cannot find the type of education in\n{header}\n')
+        return ''
 
     @staticmethod
     def get_requests_from_page(file_string: str):
@@ -109,14 +128,22 @@ class HtmlParser2017(IHtmlParser):
         appropriate field is found
         """
         university_exams = {}
+        score_exceptions = [self.OLYMPIAD_OR_MAN_PARTICIPATOR,
+                            self.WORLD_COMPETITION_PARTICIPATOR,
+                            self.EDUCATION_DOCUMENT, 'ЗНО']
         details_scores = self.get_details_element()
         for details_score in details_scores:
             details_score = details_score.text
-            if details_score is not None and 'ЗНО' not in details_score and \
-                    self.OLYMPIAD_OR_MAN_PARTICIPATOR not in details_score and \
-                    self.EDUCATION_DOCUMENT not in details_score:
+
+            if details_score is not None and not any(
+                    (exception in details_score
+                     for exception in score_exceptions)):
                 name, score = details_score.strip().rsplit(' ', 1)
-                university_exams[name.strip()] = float(score)
+                try:
+                    university_exams[name.strip()] = float(score)
+                except ValueError as e:
+                    logger.error(e)
+                    logger.error(f'ERROR - Failed to convert {score} to float')
         return university_exams
 
     def get_extra_points(self):

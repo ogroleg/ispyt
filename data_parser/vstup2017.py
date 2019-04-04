@@ -1,7 +1,9 @@
+import logging
 import multiprocessing
 import os
 import queue
 import threading
+from typing import Optional
 
 from data_parser.AdmissionRequest import AbstractAdmissionRequest, \
     AdmissionRequest2017
@@ -10,6 +12,8 @@ from data_parser.htmlparser.htmlparser2017 import HtmlParser2017
 from data_parser.properties import MAX_FILE_CACHE_SIZE, FILE_ENCODING, \
     FILE_CACHE_DELAY, NUM_RESULTS_TO_SAVE
 from db.db import connect_to_database, save_results_to_db
+
+logger = logging.getLogger(__name__)
 
 
 def get_univ_id_and_list_id_from_filename(file_name: str):
@@ -46,22 +50,31 @@ def process_admission_requests(
     :return: array of dict of requests
     """
     return [create_request_dictionary_from_raw_data(request, base_request)
-            for request in requests]
+            for request in requests if request.getchildren()]
 
 
-def get_common_info_and_create_base_request(file_name: str, file_string: str
-                                            ) -> AbstractAdmissionRequest:
+def get_common_info_and_create_base_request(
+        file_name: str,
+        file_string: str) -> Optional[AbstractAdmissionRequest]:
     univ_id, list_id = get_univ_id_and_list_id_from_filename(file_name)
     type_of_education = HtmlParser2017.get_type_of_education(file_string)
+    if type_of_education is '':
+        return
     is_denna = 'денна' in type_of_education
     is_zaochna = 'заочна' in type_of_education
-    assert any((is_denna, is_zaochna)), type_of_education
+    if not any((is_denna, is_zaochna)):
+        data = dict(univ_id=univ_id,
+                    list_id=list_id,
+                    type_of_education=type_of_education)
+        logger.error(f'ERROR - Unknown type of education: {data}')
     return AbstractAdmissionRequest(univ_id, list_id, is_denna, is_zaochna)
 
 
 def process_page_with_admission_requests(file_name: str, file_string: str):
     base_request = get_common_info_and_create_base_request(
         file_name, file_string)
+    if base_request is None:
+        return list()
     requests = HtmlParser2017.get_requests_from_page(file_string)
     return process_admission_requests(requests, base_request)
 
@@ -75,7 +88,10 @@ def main_worker(files_cache, is_all_files_read, input_arguments):
         except queue.Empty:
             continue
         result = process_page_with_admission_requests(filename, file_string)
-        [print(r) for r in result]
+        if result is None or len(result) == 0:
+            continue
+        for r in result:
+            logger.info(r)
         results.extend(result)
         if len(results) > NUM_RESULTS_TO_SAVE:
             save_results_to_db(db, results)
@@ -110,8 +126,8 @@ def read_data_from_files_and_add_to_file_cache(
         except queue.Empty:
             break  # error getting path, no files left or we should wait
         path = os.path.join(*file_path)
-        with open(path, encoding=FILE_ENCODING) as f:  # and read it
-            file_data = f.read()
+        with open(path, encoding=FILE_ENCODING) as source:  # and read it
+            file_data = source.read()
         # store contents in cache
         file_cache.put((os.path.basename(path), file_data))
 
@@ -134,11 +150,10 @@ def read_data_from_files(
 def start_reading_data_with_delay_in_thread(
         files_to_read_queue: multiprocessing.Queue,
         file_cache: multiprocessing.Queue,
-        is_all_files_read: multiprocessing.Event,
+        are_files_read: multiprocessing.Event,
         delay: float = 0.0):
     t = threading.Timer(delay, read_data_from_files,
-                        args=(
-                        files_to_read_queue, file_cache, is_all_files_read))
+                        args=(files_to_read_queue, file_cache, are_files_read))
     t.start()
 
 
@@ -151,14 +166,21 @@ def start_parsing_pages_and_write_result_to_database(input_arguments):
     add_files_to_queue(path_to_data, files_to_read_queue)
     read_data_from_files(files_to_read_queue, file_cache, is_all_files_read)
     print(f'Total files to process: {files_to_read_queue.qsize()}')
+    print()
     pool = multiprocessing.Pool(input_arguments.workers)  # create pool
     pool.starmap(main_worker,
                  [(file_cache, is_all_files_read, input_arguments)] *
                  input_arguments.workers)  # and process queue using pool
+    # main_worker(file_cache, is_all_files_read, input_arguments)
     print('exit')
 
 
 if __name__ == '__main__':
+    file_handler = logging.FileHandler('requests.log')
+    logger.addHandler(file_handler)
+    logger.setLevel(logging.DEBUG)
+    with open('errors.txt', 'w+')as f:
+        f.write('')
     parser = create_input_argument_parser()
     args = parser.parse_args()
     start_parsing_pages_and_write_result_to_database(args)

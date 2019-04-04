@@ -108,3 +108,6 @@ venv.bak/
 
 # sensitive data
 constants.py
+
+# data
+data/

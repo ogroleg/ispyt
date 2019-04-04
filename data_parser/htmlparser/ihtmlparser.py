@@ -6,6 +6,8 @@ class IHtmlParser(object):
 
     @staticmethod
     def _get_title_of_row(row):
+        if not row.getchildren():
+            return ''
         style_value = row.getchildren()[0].attrib['style']
         # if background is white - there is no title to row
         if style_value == 'background:#fff':
