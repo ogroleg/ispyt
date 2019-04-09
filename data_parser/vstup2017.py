@@ -1,9 +1,13 @@
+import base64
 import logging
 import multiprocessing
 import os
 import queue
 import threading
+from re import sub
 from typing import Optional
+
+import requests
 
 from data_parser.AdmissionRequest import AbstractAdmissionRequest, \
     AdmissionRequest2017
@@ -12,6 +16,7 @@ from data_parser.htmlparser.htmlparser2017 import HtmlParser2017
 from data_parser.properties import MAX_FILE_CACHE_SIZE, FILE_ENCODING, \
     FILE_CACHE_DELAY, NUM_RESULTS_TO_SAVE
 from db.db import connect_to_database, save_results_to_db
+from htmlparser.htmlunivparser import get_univ_info_from_page_2017
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +180,77 @@ def start_parsing_pages_and_write_result_to_database(input_arguments):
     print('exit')
 
 
+def get_univ_files(data_path) -> list:
+    return [os.path.join(data_path, x) for x in os.listdir(data_path) if
+            os.path.isfile(os.path.join(data_path, x))
+            and 'b.html' not in x
+            and 'bz.html' not in x
+            and 'stat.html' not in x
+            and 'index' not in x
+            and 'o' not in x]
+
+
+def get_city_name_from_address(address):
+    key = ''
+    google_maps_api_url = \
+        "https://maps.googleapis.com/maps/api/geocode/json?address=" + \
+        address.replace(' ', "+") + \
+        "&language=uk&sensor=false&region=uk&key=" + key
+    req = requests.get(google_maps_api_url)
+    res = req.json()
+    try:
+        result = res['results'][0]
+        for address_component in result['address_components']:
+            if ('administrative_area_level_1' in address_component['types']) \
+                    and ('political' in address_component['types']):
+                # here our city name - however we need to tes
+                return address_component['long_name']
+
+        for address_component in result['address_components']:
+            if ('administrative_area_level_2' in address_component['types']) \
+                    and ('political' in address_component['types']):
+                # here our city name - however we need to tes
+                return address_component['long_name']
+    except Exception as e:
+        print(e)
+        print(address)
+        return ''
+
+
+def get_univ_id(univ):
+    return base64.b64encode(univ['univ_title'].encode('utf-8')).decode('ascii')
+
+
+def parse_univ_pages_and_write_to_database(input_arguments):
+    db = connect_to_database(input_arguments.db_host, input_arguments.db)
+    if input_arguments.erase:
+        db.univs.drop()
+    html_univ_files = get_univ_files(input_arguments.path)
+    univs_to_insert = dict()
+    for univ_file in html_univ_files:
+        with open(univ_file, 'rb') as file:
+            q = file.read()
+        univ = get_univ_info_from_page_2017(q)
+
+        tlower = univ['univ_title'].lower()
+        if 'коледж' in tlower or 'технікум' in tlower or 'училищ' in tlower:
+            continue
+
+        univ['univ_title'] = sub(r'\([^)]*\)', '', univ['univ_title'].strip())
+        while '  ' in univ['univ_title']:
+            univ['univ_title'] = univ['univ_title'].replace('  ', ' ')
+
+        univ['univ_location'] = get_city_name_from_address(
+            univ['univ_address'])
+        univ['univ_id'] = get_univ_id(univ)
+
+        univs_to_insert[univ['univ_id']] = univ
+        if len(univs_to_insert) % 10 == 0:
+            print(len(univs_to_insert))
+    db.univs.insert_many(univs_to_insert.values())
+    print(db.univs.count())
+
+
 if __name__ == '__main__':
     file_handler = logging.FileHandler('requests.log')
     logger.addHandler(file_handler)
@@ -183,4 +259,7 @@ if __name__ == '__main__':
         f.write('')
     parser = create_input_argument_parser()
     args = parser.parse_args()
+    # requests
     start_parsing_pages_and_write_result_to_database(args)
+    # univs
+    parse_univ_pages_and_write_to_database(args)
