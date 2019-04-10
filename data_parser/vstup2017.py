@@ -1,4 +1,3 @@
-import base64
 import logging
 import multiprocessing
 import os
@@ -16,7 +15,9 @@ from data_parser.htmlparser.htmlparser2017 import HtmlParser2017
 from data_parser.properties import MAX_FILE_CACHE_SIZE, FILE_ENCODING, \
     FILE_CACHE_DELAY, NUM_RESULTS_TO_SAVE
 from db.db import connect_to_database, save_results_to_db
-from htmlparser.htmlunivparser import get_univ_info_from_page_2017
+from htmlparser.htmlunivparser import get_univ_info_from_page_2017, \
+    get_area_course_info
+from utils import generate_id
 
 logger = logging.getLogger(__name__)
 
@@ -30,19 +31,25 @@ def create_request_dictionary_from_raw_data(
     processed_request = AdmissionRequest2017(request_with_base_data)
     html_parser = HtmlParser2017(row)
     full_name = html_parser.get_full_name()
-    processed_request.set_full_name_and_first_second_last_names(full_name)
-    processed_request.extra_points = html_parser.get_extra_points()
-    processed_request.rank = html_parser.get_rank()
-    processed_request.school_score = \
-        html_parser.get_score_of_education_document()
-    processed_request.total_score = html_parser.get_total_score()
-    processed_request.gov_exams = html_parser.get_government_exam_scores()
-    processed_request.priority = html_parser.get_priority()
-    processed_request.univ_exams = html_parser.get_university_exams()
-    processed_request.coefficients = html_parser.get_coefficients()
-    processed_request.is_quota = html_parser.get_is_quota()
-    processed_request.is_original = html_parser.get_is_original()
-    processed_request.is_enrolled = html_parser.get_is_enrolled()
+    try:
+        processed_request.set_full_name_and_first_second_last_names(full_name)
+        processed_request.extra_points = html_parser.get_extra_points()
+        processed_request.rank = html_parser.get_rank()
+        processed_request.school_score = \
+            html_parser.get_score_of_education_document()
+        processed_request.total_score = html_parser.get_total_score()
+        processed_request.gov_exams = html_parser.get_government_exam_scores()
+        processed_request.priority = html_parser.get_priority()
+        processed_request.univ_exams = html_parser.get_university_exams()
+        processed_request.coefficients = html_parser.get_coefficients()
+        processed_request.is_quota = html_parser.get_is_quota()
+        processed_request.is_original = html_parser.get_is_original()
+        processed_request.is_enrolled = html_parser.get_is_enrolled()
+    except Exception as e:
+        logger.error(
+            f'i{processed_request.univ_id}p{processed_request.list_id}')
+        logger.error(e)
+        return None
     return vars(processed_request)
 
 
@@ -54,25 +61,26 @@ def process_admission_requests(
     :param base_request: request object with common data for all requests
     :return: array of dict of requests
     """
-    return [create_request_dictionary_from_raw_data(request, base_request)
-            for request in requests if request.getchildren()]
+    request_dao = [
+        create_request_dictionary_from_raw_data(request, base_request)
+        for request in requests if request.getchildren()]
+    return list(filter(None, request_dao))
 
 
 def get_common_info_and_create_base_request(
         file_name: str,
         file_string: str) -> Optional[AbstractAdmissionRequest]:
     univ_id, list_id = get_univ_id_and_list_id_from_filename(file_name)
+    course_name = HtmlParser2017.get_course(file_string)
+    course_id = generate_id(course_name)
     type_of_education = HtmlParser2017.get_type_of_education(file_string)
     if type_of_education is '':
         return
-    is_denna = 'денна' in type_of_education
+    # if both False - education type is 'дистанційна'
+    is_denna = 'денна' in type_of_education or 'вечірня' in type_of_education
     is_zaochna = 'заочна' in type_of_education
-    if not any((is_denna, is_zaochna)):
-        data = dict(univ_id=univ_id,
-                    list_id=list_id,
-                    type_of_education=type_of_education)
-        logger.error(f'ERROR - Unknown type of education: {data}')
-    return AbstractAdmissionRequest(univ_id, list_id, is_denna, is_zaochna)
+    return AbstractAdmissionRequest(
+        univ_id, list_id, is_denna, is_zaochna, course_id)
 
 
 def process_page_with_admission_requests(file_name: str, file_string: str):
@@ -80,8 +88,8 @@ def process_page_with_admission_requests(file_name: str, file_string: str):
         file_name, file_string)
     if base_request is None:
         return list()
-    requests = HtmlParser2017.get_requests_from_page(file_string)
-    return process_admission_requests(requests, base_request)
+    requests_body = HtmlParser2017.get_requests_from_page(file_string)
+    return process_admission_requests(requests_body, base_request)
 
 
 def main_worker(files_cache, is_all_files_read, input_arguments):
@@ -176,7 +184,6 @@ def start_parsing_pages_and_write_result_to_database(input_arguments):
     pool.starmap(main_worker,
                  [(file_cache, is_all_files_read, input_arguments)] *
                  input_arguments.workers)  # and process queue using pool
-    # main_worker(file_cache, is_all_files_read, input_arguments)
     print('exit')
 
 
@@ -191,7 +198,7 @@ def get_univ_files(data_path) -> list:
 
 
 def get_city_name_from_address(address):
-    key = ''
+    key = 'AIzaSyCb6NGByqrqJkhyLQ9WYilklblsEcIElW8'
     google_maps_api_url = \
         "https://maps.googleapis.com/maps/api/geocode/json?address=" + \
         address.replace(' ', "+") + \
@@ -217,10 +224,6 @@ def get_city_name_from_address(address):
         return ''
 
 
-def get_univ_id(univ):
-    return base64.b64encode(univ['univ_title'].encode('utf-8')).decode('ascii')
-
-
 def parse_univ_pages_and_write_to_database(input_arguments):
     db = connect_to_database(input_arguments.db_host, input_arguments.db)
     if input_arguments.erase:
@@ -242,13 +245,41 @@ def parse_univ_pages_and_write_to_database(input_arguments):
 
         univ['univ_location'] = get_city_name_from_address(
             univ['univ_address'])
-        univ['univ_id'] = get_univ_id(univ)
+        univ['univ_id'] = generate_id(univ['univ_title'])
 
         univs_to_insert[univ['univ_id']] = univ
         if len(univs_to_insert) % 10 == 0:
             print(len(univs_to_insert))
     db.univs.insert_many(univs_to_insert.values())
-    print(db.univs.count())
+
+
+def parse_areas_of_study_and_write_to_database(input_arguments):
+    db = connect_to_database(input_arguments.db_host, input_arguments.db)
+    if input_arguments.erase:
+        db.areas.drop()
+        db.courses.drop()
+    html_univ_files = get_univ_files(input_arguments.path)
+    areas = dict()
+    for univ_file in html_univ_files:
+        with open(univ_file, 'rb') as file:
+            q = file.read()
+        local_areas = get_area_course_info(q)
+        for key, value in local_areas.items():
+            if key not in areas:
+                areas[key] = list()
+            for course in value:
+                if course not in areas[key]:
+                    areas[key].append(course)
+    print(areas)
+    areas_dao = [{'area_id_old': generate_id(title), 'area_title': title}
+                 for title in areas.keys()]
+    courses_dao = list()
+    for title, course_list in areas.items():
+        curr_courses = [{'area_id_old': generate_id(title), 'course_title': c}
+                        for c in course_list]
+        courses_dao.extend(curr_courses)
+    db.areas.insert_many(areas_dao)
+    db.courses.insert_many(courses_dao)
 
 
 if __name__ == '__main__':
@@ -259,7 +290,8 @@ if __name__ == '__main__':
         f.write('')
     parser = create_input_argument_parser()
     args = parser.parse_args()
+    # universities, area, courses
+    parse_univ_pages_and_write_to_database(args)
+    parse_areas_of_study_and_write_to_database(args)
     # requests
     start_parsing_pages_and_write_result_to_database(args)
-    # univs
-    parse_univ_pages_and_write_to_database(args)

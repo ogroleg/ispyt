@@ -27,24 +27,38 @@ class HtmlParser2017(IHtmlParser):
         return html.fragment_fromstring(header_str)
 
     @staticmethod
+    def get_course(file_string: str) -> str:
+        header = HtmlParser2017._get_header_from_file_data(file_string)
+        for item in header.getchildren()[1].getchildren():
+            caption = to_utf8(item.tail)
+            if caption and 'Спеціальність' in caption:
+                return caption.replace('Спеціальність', '') \
+                    .replace(':', '').strip()
+        return ''
+
+    @staticmethod
     def get_type_of_education(file_string: str) -> str:
         """
         :param file_string: text of html page
         :return: expected to be 'денна' or 'заочна'
         """
         header = HtmlParser2017._get_header_from_file_data(file_string)
-        for item in header.getchildren()[1].getchildren():
+        header_items = header.getchildren()[1].getchildren()
+        for item in header_items:
             caption = to_utf8(item.tail)
             try:
                 if caption is None:
                     continue
-                if any(('денна' in caption, 'заочна' in caption)):
-                    return caption
+                forms = ['дистанційна', 'денна', 'заочна', 'вечірня']
+                for form in forms:
+                    if form in caption:
+                        return caption
             except TypeError:
                 logger.error(f'ERROR - Argument of "NoneType" is not iterable:'
                              f' caption={caption}')
+        item_texts = list(map(lambda x: x.tail, header_items))
         logger.error(
-            f'ERROR - Cannot find the type of education in\n{header}\n')
+            f'ERROR - Cannot find the type of education in\n{item_texts}\n')
         return ''
 
     @staticmethod

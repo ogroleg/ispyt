@@ -1,7 +1,8 @@
 class AbstractAdmissionRequest(object):
     def __init__(self, univ_id: int, list_id: int,
-                 is_denna: bool, is_zaochna: bool):
+                 is_denna: bool, is_zaochna: bool, course_id: str):
         self.univ_id = univ_id
+        self.course_id = course_id
         self.list_id = list_id
         self.is_denna = is_denna
         self.is_zaochna = is_zaochna
@@ -40,7 +41,8 @@ class AdmissionRequest2017(AbstractAdmissionRequest):
             base.univ_id,
             base.list_id,
             base.is_denna,
-            base.is_zaochna
+            base.is_zaochna,
+            base.course_id
         )
         self.priority = 0
         self.coefficients = {}
