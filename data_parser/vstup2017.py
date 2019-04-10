@@ -198,7 +198,7 @@ def get_univ_files(data_path) -> list:
 
 
 def get_city_name_from_address(address):
-    key = 'AIzaSyCb6NGByqrqJkhyLQ9WYilklblsEcIElW8'
+    key = ''
     google_maps_api_url = \
         "https://maps.googleapis.com/maps/api/geocode/json?address=" + \
         address.replace(' ', "+") + \

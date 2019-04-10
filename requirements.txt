@@ -11,3 +11,4 @@ pymongo==3.7.2
 requests
 scipy==1.2.1
 scikit-learn==0.20.2
+pytest==4.4.0
