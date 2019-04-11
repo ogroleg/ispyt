@@ -1,4 +1,9 @@
 import base64
+import os
+import sys
+
+WINDOWS = (sys.platform.startswith("win") or
+           (sys.platform == 'cli' and os.name == 'nt'))
 
 
 def generate_id(string_code: str):
