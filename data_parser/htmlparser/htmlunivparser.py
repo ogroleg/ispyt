@@ -9,7 +9,7 @@ class UNIV_FIELDS:
 
 
 def is_university_state_owned(title: str):
-    return 'національний' in title.lower() or 'національна' in title.lower()
+    return 'національн' in title.lower()
 
 
 def get_univ_info_from_page_2017(univ_page):
