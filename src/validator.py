@@ -19,9 +19,9 @@ ERRORS = {
 }
 
 
-def check_filter_request(request_json: str) -> Optional[FilterRequest]:
+def check_filter_request(request_json: dict) -> Optional[FilterRequest]:
     try:
-        filter_request = FilterRequest.from_json(request_json)
+        filter_request = FilterRequest(request_json)
         check_filter(filter_request.filter)
         return filter_request
     except Exception as e:
@@ -29,7 +29,8 @@ def check_filter_request(request_json: str) -> Optional[FilterRequest]:
 
 
 def check_filter(request: Filter):
-    if 'type' in request.part_top_applicants:
+    if request.part_top_applicants is not None and \
+            'type' in request.part_top_applicants:
         if request.part_top_applicants['type'] not in PART_TOP_TYPES:
             raise InvalidRequestParameter(
                 'Unknown part of top applications type:'

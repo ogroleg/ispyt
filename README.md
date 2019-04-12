@@ -56,7 +56,9 @@
         "analytics": bytes,
         "average_overall_score": float,
         "average_ZNO_score": float,
+        "average_school_score': float,
         "passing_overall_score": float,
+        "count": int
     }
 ]
 ```

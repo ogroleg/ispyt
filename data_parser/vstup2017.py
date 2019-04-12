@@ -235,9 +235,9 @@ def parse_univ_pages_and_write_to_database(input_arguments):
             q = file.read()
         univ = get_univ_info_from_page_2017(q)
 
-        tlower = univ['univ_title'].lower()
-        if 'коледж' in tlower or 'технікум' in tlower or 'училищ' in tlower:
-            continue
+        # tlower = univ['univ_title'].lower()
+        # if 'коледж' in tlower or 'технікум' in tlower or 'училищ' in tlower:
+        #     continue
 
         univ['univ_title'] = sub(r'\([^)]*\)', '', univ['univ_title'].strip())
         while '  ' in univ['univ_title']:
@@ -245,7 +245,8 @@ def parse_univ_pages_and_write_to_database(input_arguments):
 
         univ['univ_location'] = get_city_name_from_address(
             univ['univ_address'])
-        univ['univ_id'] = generate_id(univ['univ_title'])
+        # generate_id(univ['univ_title'])
+        univ['univ_id'] = int(univ_file[univ_file.rindex('i') + 1:-5])
 
         univs_to_insert[univ['univ_id']] = univ
         if len(univs_to_insert) % 10 == 0:
@@ -292,6 +293,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     # universities, area, courses
     parse_univ_pages_and_write_to_database(args)
-    parse_areas_of_study_and_write_to_database(args)
+    # parse_areas_of_study_and_write_to_database(args)
     # requests
-    start_parsing_pages_and_write_result_to_database(args)
+    # start_parsing_pages_and_write_result_to_database(args)
