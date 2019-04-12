@@ -1,6 +1,4 @@
-from dataclasses import dataclass
-
-from dataclasses_json import dataclass_json
+from src.exceptions import InvalidRequestParameter
 
 LENGTHS = {
     "regions": [2, 255],
@@ -8,37 +6,40 @@ LENGTHS = {
     "knowledge_areas": [4, 255]
 }
 
-PART_TOP_TYPES = ['gov_exams', 'school_score']
+PART_TOP_TYPES = ['gov_exams', 'school_score', 'overall']
 
 
-@dataclass_json
-@dataclass
-class UnivInfo:
-    univ_title: str
-    univ_id: str
-
-
-@dataclass_json
-@dataclass
-class SetupResponse:
-    tags: dict
-    knowledge_areas: dict
-    regions: dict
-    univs: list
-
-
-@dataclass_json
-@dataclass
 class Filter:
-    univ_ids: list
-    knowledge_regions: list
-    part_top_applicants: dict
-    regions: list
-    years: list
-    is_enrolled: bool
+    keys_types = {
+        'univ_ids': list,
+        'univ_titles': list,
+        'knowledge_areas': list,
+        'part_top_applicants': dict,
+        'regions': list, 'years': list,
+        'enrolled_only': bool}
+    keys = set(keys_types.keys())
+
+    def __init__(self, obj: dict):
+        extra_fields = set(obj.keys()) - self.keys
+        if extra_fields:
+            raise InvalidRequestParameter(f'Unknown fields: {extra_fields}')
+        for key in obj.keys():
+            if type(obj[key]) != self.keys_types[key]:
+                raise InvalidRequestParameter(
+                    f'Invalid type for field {key}: Actual:{type(obj[key])}, '
+                    f'Expected: {self.keys_types[key]}')
+        list(map(lambda key: setattr(self, key, obj.get(key, None)),
+                 Filter.keys))
 
 
-@dataclass_json
-@dataclass
 class FilterRequest:
-    filter: Filter
+    keys = {'filter', 'sort_by'}
+
+    def __init__(self, obj: dict):
+        extra_fields = set(obj.keys()) - self.keys
+        if extra_fields:
+            raise InvalidRequestParameter(f'Unknown fields: {extra_fields}')
+        if 'filter' not in obj.keys():
+            raise InvalidRequestParameter(f'Field "filter" is required')
+        self.filter = Filter(obj['filter'])
+        # TODO: sort

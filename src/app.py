@@ -7,6 +7,7 @@ from flask_cors import CORS
 from db import DBPool
 from settings import DB_HOST, DB_PORT, DB_NAME, APP_HOST, APP_PORT
 from src.logger import configure_logger
+from src.validator import check_filter_request
 
 logger = logging.getLogger(__file__)
 logger = configure_logger(logger)
@@ -45,9 +46,27 @@ def get_filtering_params():
 @app.route('/', methods=['POST'])
 def filter_data_and_analyse():
     data = request.get_json()
-    logger.info(f'[POST] Received\n{json.dumps(data)}')
-    regions = db.get_regions_by_filter(data['filters'])
-    return Response(json.dumps(regions), mimetype='application/json')
+    logger.info(f'[POST] Received\n{data}')
+    data = check_filter_request(data)
+    if data.filter.univ_titles:
+        data.filter.univ_ids = db.get_universities_by_titles(
+            data.filter.univ_titles)
+        data.filter.univ_titles = None
+    requests = db.get_requests_by_filter(data.filter)
+    univs = db.get_universities_by_requests(requests)
+    univ_ids = [univ['univ_id'] for univ in univs]
+    labels_fields = {
+        'average_overall_score': 'total_score',
+        'average_school_score': 'school_score'
+    }
+    additional_info = db.get_additional_data_by_univ(
+        univ_ids, labels_fields)
+    for info, univ in zip(additional_info, univs):
+        info.update(univ)
+        del info['_id']
+    result = sorted(additional_info, key=lambda x: x['average_overall_score'],
+                    reverse=True)
+    return Response(json.dumps(result), mimetype='application/json')
 
 
 if __name__ == '__main__':
